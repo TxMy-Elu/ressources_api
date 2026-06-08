@@ -73,8 +73,15 @@ jobs:
       - name: Create .env (required by Symfony bootEnv)
         run: echo "APP_ENV=test" > .env
 
+      - name: Clear Symfony cache
+        run: php bin/console cache:clear
+
       - name: Run migrations
         run: php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+
+      - name: Load fixtures
+        # --purge-with-truncate : désactive les FK checks avant TRUNCATE (évite les échecs silencieux sur FK circulaires)
+        run: php bin/console doctrine:fixtures:load --no-interaction --purge-with-truncate
 
       - name: Run tests
         run: php bin/phpunit --no-coverage --stop-on-failure
