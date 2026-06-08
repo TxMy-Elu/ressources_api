@@ -21,6 +21,7 @@ jobs:
       JWT_PASSPHRASE: ${{ secrets.JWT_PASSPHRASE }}
       JWT_SECRET_KEY: "%kernel.project_dir%/config/jwt/private.pem"
       JWT_PUBLIC_KEY: "%kernel.project_dir%/config/jwt/public.pem"
+      DEFAULT_URI: "http://localhost"
       # Base "resources" + suffixe "_test" (doctrine) = "resources_test" ✓
       DATABASE_URL: "mysql://app:app@127.0.0.1:3306/resources?serverVersion=8.0&charset=utf8mb4"
 
