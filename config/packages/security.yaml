@@ -51,7 +51,7 @@ security:
         - { path: ^/api/resources, methods: [ GET ], roles: PUBLIC_ACCESS }
         - { path: ^/api/categories, methods: [ GET ], roles: PUBLIC_ACCESS }
         - { path: ^/api/resources, methods: [ POST, PUT, DELETE ], roles: ROLE_CONNECTED }
-        - { path: ^/api/moderation, roles: ROLE_MODERATOR }
+        - { path: ^/api/moderation, roles: ROLE_ADMIN }
         - { path: ^/api/admin, roles: ROLE_ADMIN }
         - { path: ^/api, roles: ROLE_CONNECTED }
 

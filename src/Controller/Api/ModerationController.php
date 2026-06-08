@@ -48,7 +48,7 @@ final class ModerationController extends AbstractController
     #[OA\Response(response: 403, description: 'Accès refusé — Modérateur requis')]
     public function pending(RessourceRepository $repo): JsonResponse
     {
-        $this->denyAccessUnlessGranted('ROLE_MODERATOR');
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
 
         $resources = $repo->findBy(['statut' => Ressource::STATUS_PENDING]);
 
@@ -91,7 +91,7 @@ final class ModerationController extends AbstractController
     #[OA\Response(response: 404, description: 'Ressource introuvable')]
     public function validate(int $id, Request $request, RessourceRepository $repo, EntityManagerInterface $em, LogService $logger): JsonResponse
     {
-        $this->denyAccessUnlessGranted('ROLE_MODERATOR');
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
 
         $resource = $repo->find($id);
         if (!$resource) {
@@ -134,7 +134,7 @@ final class ModerationController extends AbstractController
     #[OA\Response(response: 404, description: 'Ressource introuvable')]
     public function suspend(int $id, Request $request, RessourceRepository $repo, EntityManagerInterface $em, LogService $logger): JsonResponse
     {
-        $this->denyAccessUnlessGranted('ROLE_MODERATOR');
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
 
         $resource = $repo->find($id);
         if (!$resource) {
@@ -164,7 +164,7 @@ final class ModerationController extends AbstractController
     #[Route('/comments', name: 'api_moderation_comments', methods: ['GET'])]
     public function comments(Request $request, CommentRepository $repo): JsonResponse
     {
-        $this->denyAccessUnlessGranted('ROLE_MODERATOR');
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
 
         $page  = max(1, (int) $request->query->get('page', 1));
         $limit = min(50, max(1, (int) $request->query->get('limit', 20)));
@@ -210,7 +210,7 @@ final class ModerationController extends AbstractController
     #[Route('/comments/{id}', name: 'api_moderation_comment_delete', methods: ['DELETE'])]
     public function deleteComment(int $id, Request $request, CommentRepository $repo, EntityManagerInterface $em, LogService $logger): JsonResponse
     {
-        $this->denyAccessUnlessGranted('ROLE_MODERATOR');
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
 
         $comment = $repo->find($id);
         if (!$comment) {
