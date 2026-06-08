@@ -153,7 +153,7 @@ jobs:
   owasp-dependency-check:
     name: OWASP Dependency Check
     runs-on: ubuntu-latest
-    # Lancé seulement la nuit pour éviter d'allonger les PRs (téléchargement NVD lourd)
+    # NVD = téléchargement lourd (5-15 min) — composer-audit + trivy couvrent les CVE sur chaque PR
     if: github.event_name == 'schedule' || github.ref == 'refs/heads/main'
 
     steps:
