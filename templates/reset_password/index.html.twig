@@ -1,0 +1,79 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Réinitialiser le mot de passe{% endblock %}
+
+{% block body %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Réinitialiser votre mot de passe</h3>
+                </div>
+                <div class="card-body">
+                    {% if error is defined %}
+                        <div class="alert alert-danger">{{ error }}</div>
+                    {% endif %}
+
+                    {% if success is defined %}
+                        <div class="alert alert-success">{{ success }}</div>
+                    {% endif %}
+
+                    {% if success is not defined %}
+                    <form method="post">
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Nouveau mot de passe</label>
+                            <input type="password"
+                                   class="form-control"
+                                   id="password"
+                                   name="password"
+                                   required
+                                   minlength="8">
+                            <div class="form-text">Le mot de passe doit contenir au moins 8 caractères.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password_confirm" class="form-label">Confirmer le mot de passe</label>
+                            <input type="password"
+                                   class="form-control"
+                                   id="password_confirm"
+                                   name="password_confirm"
+                                   required
+                                   minlength="8">
+                        </div>
+
+                        <input type="hidden" name="token" value="{{ token }}">
+
+                        <button type="submit" class="btn btn-primary">Réinitialiser le mot de passe</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Validation côté client pour la confirmation du mot de passe
+const form = document.querySelector('form');
+
+if (form) {
+    form.addEventListener('submit', function(e) {
+        const password = document.getElementById('password').value;
+        const confirm = document.getElementById('password_confirm').value;
+
+        if (password !== confirm) {
+            e.preventDefault();
+            alert('Les mots de passe ne correspondent pas.');
+            return false;
+        }
+
+        if (password.length < 8) {
+            e.preventDefault();
+            alert('Le mot de passe doit contenir au moins 8 caractères.');
+            return false;
+        }
+    });
+}
+</script>
+{% endblock %}

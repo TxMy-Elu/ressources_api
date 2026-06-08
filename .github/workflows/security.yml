@@ -1,0 +1,178 @@
+name: Security — CVE & OWASP
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    # Scan automatique chaque nuit à 2h UTC
+    - cron: "0 2 * * *"
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # COMPOSER AUDIT — CVE dans les dépendances PHP
+  # ──────────────────────────────────────────────────────────────────────────
+  composer-audit:
+    name: Composer Audit (PHP deps CVE)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-scripts
+
+      - name: Composer audit
+        run: composer audit --format=json --no-interaction 2>&1 | tee composer-audit.json || true
+
+      - name: Check for critical vulnerabilities
+        run: |
+          CRITICAL=$(cat composer-audit.json | python3 -c "
+          import json,sys
+          data=json.load(sys.stdin)
+          advisories=data.get('advisories',{})
+          critical=[a for pkg in advisories.values() for a in pkg if a.get('severity','').lower() in ['critical','high']]
+          print(len(critical))
+          " 2>/dev/null || echo "0")
+          echo "Critical/High vulnerabilities found: $CRITICAL"
+          if [ "$CRITICAL" -gt "0" ]; then
+            echo "❌ CRITICAL or HIGH vulnerabilities detected!"
+            cat composer-audit.json | python3 -c "
+          import json,sys
+          data=json.load(sys.stdin)
+          for pkg,advisories in data.get('advisories',{}).items():
+            for a in advisories:
+              if a.get('severity','').lower() in ['critical','high']:
+                print(f\"  [{a['severity']}] {pkg}: {a['title']} — {a.get('cve','')}\")
+            " 2>/dev/null
+            exit 1
+          fi
+          echo "✅ No critical vulnerabilities found"
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: composer-audit-report
+          path: composer-audit.json
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # TRIVY — Scan CVE de l'image Docker
+  # ──────────────────────────────────────────────────────────────────────────
+  trivy-image:
+    name: Trivy — Docker image CVE scan
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image for scanning
+        run: docker build -f Dockerfile.prod -t ressources-api:scan .
+
+      - name: Trivy scan — CRITICAL & HIGH
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ressources-api:scan
+          format: table
+          exit-code: "1"
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Trivy scan — SARIF (GitHub Security tab)
+        uses: aquasecurity/trivy-action@master
+        if: always()
+        with:
+          image-ref: ressources-api:scan
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          ignore-unfixed: true
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # TRIVY — Scan du code source (secrets, misconfigs)
+  # ──────────────────────────────────────────────────────────────────────────
+  trivy-code:
+    name: Trivy — Code & secrets scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs-results.sarif
+          scanners: secret,misconfig,vuln
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-fs-results.sarif
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # GITLEAKS — Détection de secrets dans le code
+  # ──────────────────────────────────────────────────────────────────────────
+  gitleaks:
+    name: Gitleaks — Secret detection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # OWASP DEPENDENCY CHECK — NIST NVD database
+  # ──────────────────────────────────────────────────────────────────────────
+  owasp-dependency-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    # NVD = téléchargement lourd (5-15 min) — composer-audit + trivy couvrent les CVE sur chaque PR
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: ressources_api
+          path: .
+          format: HTML,JUNIT
+          args: >
+            --enableRetired
+            --failOnCVSS 7
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: owasp-dependency-check-report
+          path: reports/

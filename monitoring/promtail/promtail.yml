@@ -1,0 +1,93 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/promtail-positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    batchwait:  1s
+    batchsize:  1048576
+
+scrape_configs:
+
+  # ── Lecture des logs via Docker socket ─────────────────────────────────────
+  # Nginx écrit en JSON vers stdout (symlink /dev/stdout dans l'image alpine)
+  # Promtail lit directement les logs Docker — pas de volume nécessaire
+  # ───────────────────────────────────────────────────────────────────────────
+  - job_name: docker
+
+    docker_sd_configs:
+      - host:             unix:///var/run/docker.sock
+        refresh_interval: 5s
+
+    relabel_configs:
+      # Garder uniquement le conteneur Nginx
+      - source_labels: [__meta_docker_container_name]
+        regex:        '/resources_nginx'
+        action:       keep
+
+      # Définir le job selon le type de log
+      - source_labels: [__meta_docker_container_name]
+        regex:        '/resources_nginx'
+        target_label: job
+        replacement:  nginx-access
+
+      # Ajouter le nom du conteneur comme label
+      - source_labels: [__meta_docker_container_name]
+        regex:        '/(.+)'
+        target_label: container
+
+      # Stream (stdout / stderr)
+      - source_labels: [__meta_docker_container_log_stream]
+        target_label: stream
+
+    pipeline_stages:
+      # Parser le JSON émis par Nginx (stdout = access log)
+      # Ignorer les lignes non-JSON (démarrage nginx, notices)
+      - json:
+          expressions:
+            time:      time
+            method:    method
+            uri:       uri
+            status:    status
+            req_time:  req_time
+            size:      size
+            ip:        ip
+
+      # Indexer method et status comme labels Loki
+      - labels:
+          method:
+          status:
+
+      # ── Métriques custom exposées sur :9080/metrics → scrapées par Prometheus ──
+      # Histogram de latence HTTP (remplace quantile_over_time Loki 3.6.x)
+      - metrics:
+          http_request_duration_seconds:
+            type:        Histogram
+            description: "Durée des requêtes HTTP Nginx (source: req_time JSON)"
+            source:      req_time
+            config:
+              buckets: [0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+
+          # Compteur total de requêtes HTTP
+          http_requests_total:
+            type:        Counter
+            description: "Nombre total de requêtes HTTP Nginx"
+            source:      method
+            config:
+              action: inc
+
+          # Histogram de taille des réponses HTTP
+          http_response_size_bytes:
+            type:        Histogram
+            description: "Taille des réponses HTTP Nginx (bytes)"
+            source:      size
+            config:
+              buckets: [100, 1000, 10000, 100000, 1000000]
+
+      # Supprimer les lignes vides / non-JSON (démarrage nginx, notices)
+      - drop:
+          expression: '^$'
+          drop_counter_reason: empty_line

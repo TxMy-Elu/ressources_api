@@ -1,0 +1,127 @@
+name: CI — Tests & Quality
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev, main, release, hotfix]
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # TESTS
+  # ──────────────────────────────────────────────────────────────────────────
+  tests:
+    name: PHPUnit Tests
+    runs-on: ubuntu-latest
+
+    # Secrets injectés comme variables d'environnement — pas dans .env
+    env:
+      APP_ENV: test
+      APP_SECRET: ${{ secrets.APP_SECRET }}
+      JWT_PASSPHRASE: ${{ secrets.JWT_PASSPHRASE }}
+      JWT_SECRET_KEY: "%kernel.project_dir%/config/jwt/private.pem"
+      JWT_PUBLIC_KEY: "%kernel.project_dir%/config/jwt/public.pem"
+      DEFAULT_URI: "http://localhost"
+      # Base "resources" + suffixe "_test" (doctrine) = "resources_test" ✓
+      DATABASE_URL: "mysql://app:app@127.0.0.1:3306/resources?serverVersion=8.0&charset=utf8mb4"
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: resources_test   # = base créée + accès pour user "app"
+          MYSQL_USER: app
+          MYSQL_PASSWORD: app
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u app -papp"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo, pdo_mysql, intl, mbstring, opcache
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts
+
+      - name: Generate JWT keys
+        run: |
+          mkdir -p config/jwt
+          openssl genpkey -algorithm RSA -out config/jwt/private.pem \
+            -aes256 -pass pass:${{ secrets.JWT_PASSPHRASE }} -pkeyopt rsa_keygen_bits:4096
+          openssl rsa -pubout -in config/jwt/private.pem \
+            -out config/jwt/public.pem -passin pass:${{ secrets.JWT_PASSPHRASE }}
+
+      - name: Create .env (required by Symfony bootEnv)
+        run: echo "APP_ENV=test" > .env
+
+      - name: Clear Symfony cache
+        run: php bin/console cache:clear
+
+      - name: Run migrations
+        run: php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+
+      - name: Load fixtures
+        # --append : pas de purge (DB vide après migrations), évite les problèmes de FK sur TRUNCATE
+        run: php bin/console doctrine:fixtures:load --no-interaction --append
+
+      - name: Run tests
+        run: php bin/phpunit --no-coverage --stop-on-failure
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # LINT
+  # ──────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Static Analysis
+    runs-on: ubuntu-latest
+
+    env:
+      APP_ENV: dev
+      APP_SECRET: ci_dummy_secret_for_lint_only
+      DATABASE_URL: "mysql://app:app@127.0.0.1:3306/resources?serverVersion=8.0&charset=utf8mb4"
+      JWT_PASSPHRASE: ci_dummy
+      JWT_SECRET_KEY: "%kernel.project_dir%/config/jwt/private.pem"
+      JWT_PUBLIC_KEY: "%kernel.project_dir%/config/jwt/public.pem"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo, pdo_mysql, intl, mbstring
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-scripts
+
+      - name: Create .env (required by Symfony bootEnv)
+        run: echo "APP_ENV=dev" > .env
+
+      - name: PHP Syntax check
+        run: find src/ -name "*.php" -exec php -l {} \; | grep -v "No syntax errors" || true
+
+      - name: Lint YAML
+        run: php bin/console lint:yaml config/ --parse-tags
+
+      - name: Lint container
+        run: php bin/console lint:container --no-debug

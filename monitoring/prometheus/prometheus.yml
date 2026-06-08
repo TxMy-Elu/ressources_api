@@ -1,0 +1,59 @@
+global:
+  scrape_interval:     15s   # Fréquence de collecte par défaut
+  evaluation_interval: 15s   # Fréquence d'évaluation des alertes
+  scrape_timeout:      10s
+
+  external_labels:
+    project:     'ressources-relationnelles'
+    environment: '${APP_ENV:-dev}'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Jobs de scraping
+# ─────────────────────────────────────────────────────────────────────────────
+scrape_configs:
+
+  # Prometheus se surveille lui-même
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ── PHP-FPM ────────────────────────────────────────────────────────────────
+  - job_name: 'php-fpm'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['php-fpm-exporter:9253']
+        labels:
+          service: 'php'
+    metrics_path: /metrics
+
+  # ── Nginx ─────────────────────────────────────────────────────────────────
+  - job_name: 'nginx'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+        labels:
+          service: 'nginx'
+
+  # ── MySQL ─────────────────────────────────────────────────────────────────
+  - job_name: 'mysql'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['mysqld-exporter:9104']
+        labels:
+          service: 'database'
+
+  # ── Système (Node Exporter) ───────────────────────────────────────────────
+  - job_name: 'node'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'host'
+
+  # ── Promtail — métriques custom (histogrammes HTTP req_time, size) ────────
+  - job_name: 'promtail'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['promtail:9080']
+        labels:
+          service: 'promtail'

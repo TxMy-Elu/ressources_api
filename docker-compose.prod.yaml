@@ -1,0 +1,75 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Surcharge PROD — environnement de production
+#
+# Lancement :
+#   docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d
+#
+# L'image PHP vient du registry GHCR (publiée par le pipeline CI/CD).
+# Aucun build local — on pull l'image taguée.
+#
+# Prérequis :
+#   - Créer .env.prod à partir de .env.prod.example
+#   - Certificats SSL dans /etc/nginx/ssl/ (volume ssl_certs)
+#   - Se connecter au registry : echo $GHCR_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - ssl_certs:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    restart: always
+
+  php:
+    # Image publiée par le pipeline CI/CD sur GHCR
+    image: ghcr.io/${GITHUB_REPOSITORY:-your-org/resources-api}:${IMAGE_TAG:-latest}
+    container_name: resources_php
+    restart: always
+    env_file:
+      - .env.prod
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+    # Migrations + warmup au démarrage (idempotent)
+    command: >
+      sh -c "
+        php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration &&
+        php bin/console cache:warmup --env=prod &&
+        php-fpm
+      "
+    volumes:
+      - ./docker/php/fpm-www.conf:/usr/local/etc/php-fpm.d/zz-www.conf:ro
+      - app_logs:/var/www/html/var/log
+    healthcheck:
+      test: ["CMD-SHELL", "php-fpm -t 2>&1 | grep -q 'successful'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  database:
+    restart: always
+    env_file:
+      - .env.prod
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: resources_prod
+      MYSQL_USER: ${DB_USER:-app}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+      - db_backups:/backups
+    # Aucun port exposé vers l'extérieur en production
+    ports: !reset []
+
+volumes:
+  db_data:
+  db_backups:
+  app_logs:
+  ssl_certs:
+  nginx_logs:
