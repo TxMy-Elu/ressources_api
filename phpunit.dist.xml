@@ -32,7 +32,8 @@
         <!-- ###+ lexik/jwt-authentication-bundle ### -->
         <env name="JWT_SECRET_KEY" value="%kernel.project_dir%/config/jwt/private.pem"/>
         <env name="JWT_PUBLIC_KEY" value="%kernel.project_dir%/config/jwt/public.pem"/>
-        <env name="JWT_PASSPHRASE" value="da24a943cf1cc602861945587c6489e6259cabe9fcf8660cb1fe397b493d126e"/>
+        <!-- JWT_PASSPHRASE : à surcharger dans .env.test.local en local, injecté via GitHub Secrets en CI -->
+        <env name="JWT_PASSPHRASE" value="change_me_in_env_test_local"/>
         <!-- ###- lexik/jwt-authentication-bundle ### -->
 
         <!-- ###+ nelmio/cors-bundle ### -->

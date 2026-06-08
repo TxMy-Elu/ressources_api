@@ -17,7 +17,8 @@ class CategoryControllerTest extends ApiTestCase
     {
         $client = static::createClient();
         $client->request('GET', '/api/categories');
-        $this->assertResponseHeaderSame('content-type', 'application/json');
+        // Le header peut contenir le charset : "application/json; charset=utf-8"
+        $this->assertStringContainsString('application/json', $client->getResponse()->headers->get('content-type') ?? '');
     }
 
     public function testListeCategoriesContientDonneesFixtures(): void

@@ -27,7 +27,7 @@ class WorkflowRegressionTest extends ApiTestCase
         $this->assertNotSame('publie', $data['statut']);
     }
 
-    public function testRessourcePriveeJamaisEnAttente(): void
+    public function testRessourcePriveePasseEnAttente(): void
     {
         $client = $this->createAuthenticatedClient();
         $client->request(
@@ -102,15 +102,15 @@ class WorkflowRegressionTest extends ApiTestCase
     {
         $client = static::createClient();
         $client->request(
-            'POST', '/api/register', [], [],
+            'POST', '/api/auth/register', [], [],
             ['CONTENT_TYPE' => 'application/json'],
             json_encode([
-                'email'     => 'regression_' . uniqid() . '@test.fr',
-                'password'  => 'Test1234!',
-                'firstname' => 'Test',
-                'lastname'  => 'User',
+                'email'    => 'regression_' . uniqid() . '@test.fr',
+                'password' => 'Test1234!',
+                'name'     => 'Test User',
             ])
         );
         $this->assertNotEquals(401, $client->getResponse()->getStatusCode());
+        $this->assertNotEquals(403, $client->getResponse()->getStatusCode());
     }
 }

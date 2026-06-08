@@ -91,7 +91,7 @@ class ResourceControllerTest extends ApiTestCase
         $this->assertSame('en attente', $data['statut']);
     }
 
-    public function testCreationRessourcePriveePasseEnBrouillon(): void
+    public function testCreationRessourcePriveePasseEnAttente(): void
     {
         $client = $this->createAuthenticatedClient();
         $client->request(
