@@ -9,6 +9,11 @@ on:
     # Scan automatique chaque nuit à 2h UTC
     - cron: "0 2 * * *"
 
+permissions:
+  contents: read
+  security-events: write   # requis pour upload-sarif (Trivy → GitHub Security tab)
+  actions: read
+
 jobs:
   # ──────────────────────────────────────────────────────────────────────────
   # COMPOSER AUDIT — CVE dans les dépendances PHP
@@ -98,7 +103,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-results.sarif
@@ -124,7 +129,7 @@ jobs:
           scanners: secret,misconfig,vuln
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-fs-results.sarif
