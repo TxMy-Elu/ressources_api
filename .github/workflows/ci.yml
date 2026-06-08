@@ -14,12 +14,22 @@ jobs:
     name: PHPUnit Tests
     runs-on: ubuntu-latest
 
+    # Secrets injectés comme variables d'environnement — pas dans .env
+    env:
+      APP_ENV: test
+      APP_SECRET: ${{ secrets.APP_SECRET }}
+      JWT_PASSPHRASE: ${{ secrets.JWT_PASSPHRASE }}
+      JWT_SECRET_KEY: "%kernel.project_dir%/config/jwt/private.pem"
+      JWT_PUBLIC_KEY: "%kernel.project_dir%/config/jwt/public.pem"
+      # Base "resources" + suffixe "_test" (doctrine) = "resources_test" ✓
+      DATABASE_URL: "mysql://app:app@127.0.0.1:3306/resources?serverVersion=8.0&charset=utf8mb4"
+
     services:
       mysql:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: resources_test
+          MYSQL_DATABASE: resources_test   # = base créée + accès pour user "app"
           MYSQL_USER: app
           MYSQL_PASSWORD: app
         ports:
@@ -59,25 +69,13 @@ jobs:
           openssl rsa -pubout -in config/jwt/private.pem \
             -out config/jwt/public.pem -passin pass:${{ secrets.JWT_PASSPHRASE }}
 
-      - name: Create .env
-        run: |
-          cat > .env << 'EOF'
-          APP_ENV=test
-          APP_SECRET=${{ secrets.APP_SECRET }}
-          DATABASE_URL=mysql://app:app@127.0.0.1:3306/resources_test?serverVersion=8.0&charset=utf8mb4
-          JWT_PASSPHRASE=${{ secrets.JWT_PASSPHRASE }}
-          JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem
-          JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem
-          EOF
+      - name: Create .env (required by Symfony bootEnv)
+        run: echo "APP_ENV=test" > .env
 
       - name: Run migrations
-        env:
-          APP_ENV: test
         run: php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
 
       - name: Run tests
-        env:
-          APP_ENV: test
         run: php bin/phpunit --no-coverage --stop-on-failure
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -86,6 +84,14 @@ jobs:
   lint:
     name: Lint & Static Analysis
     runs-on: ubuntu-latest
+
+    env:
+      APP_ENV: dev
+      APP_SECRET: ci_dummy_secret_for_lint_only
+      DATABASE_URL: "mysql://app:app@127.0.0.1:3306/resources?serverVersion=8.0&charset=utf8mb4"
+      JWT_PASSPHRASE: ci_dummy
+      JWT_SECRET_KEY: "%kernel.project_dir%/config/jwt/private.pem"
+      JWT_PUBLIC_KEY: "%kernel.project_dir%/config/jwt/public.pem"
 
     steps:
       - name: Checkout
@@ -100,16 +106,8 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-scripts
 
-      - name: Create .env
-        run: |
-          cat > .env << 'EOF'
-          APP_ENV=dev
-          APP_SECRET=ci_dummy_secret_for_lint_only
-          DATABASE_URL=mysql://app:app@127.0.0.1:3306/resources?serverVersion=8.0&charset=utf8mb4
-          JWT_PASSPHRASE=ci_dummy
-          JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem
-          JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem
-          EOF
+      - name: Create .env (required by Symfony bootEnv)
+        run: echo "APP_ENV=dev" > .env
 
       - name: PHP Syntax check
         run: find src/ -name "*.php" -exec php -l {} \; | grep -v "No syntax errors" || true
