@@ -1,0 +1,44 @@
+version: 2
+
+updates:
+  # ── Dépendances PHP / Composer ─────────────────────────────────────────────
+  - package-ecosystem: composer
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - php
+    ignore:
+      # Ignorer les major versions (breaking changes)
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ── GitHub Actions ─────────────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+
+  # ── Docker ─────────────────────────────────────────────────────────────────
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Europe/Paris"
+    labels:
+      - dependencies
+      - docker

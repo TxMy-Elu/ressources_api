@@ -1,0 +1,26 @@
+meta {
+  name: Promote User
+  type: http
+  seq: 4
+}
+
+put {
+  url: https://127.0.0.1:8000/api/admin/users/1/promote
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NzU3NzAxMTksImV4cCI6MTc3NTc3MzcxOSwicm9sZXMiOlsiUk9MRV9TVVBFUl9BRE1JTiAiLCJST0xFX0NPTk5FQ1RFRCJdLCJ1c2VybmFtZSI6InRlc3RAdGVzdC5mciJ9.DIxZuRe77tr35hJ_2WEoVIfDgJ-nPa3MMGAXWEaJ158Yc8RUBS27ppiaClVrLJePAFAIwWSCBNPqEomJBrhWFiFVeDy64qg1Ud0avygt9vqZoOd-oW55Ul-ABIn-hc9XyMBOTDEY4cwR99LUQB_ydGO8J7bz-iURTXFCdiJYhaNFG2kAhu7qPi5zTMiB34TI1YkaJq5NBt6w5fQLzDlnNR8JYWkpIjQnrpoTIHgFjYEuFR1XUrH2YGsbxH0Zb3Dosd-4cuPbbtTYyHkGO2UBCd6RyB3txN2RJSImZI2QmLYW8e3ApCzfI9Vzb3jKctTrrw5e3TD-C_nqjdV85F-ITSqWLJZuRK9l2Z18-HsQrhg7XWa00MxBFQr-aW7J-I0M14JhesnVfCo6zJJe0pzW4Go9wJxktKSI8AmoaW36oE6HDGgPiOPFXIfgyDAMoFU8JTh2rK9Q1YpC7wk9gszivEmxSi4saIjdj0XXkO1mXdo2TXuBDwcarBf84otp8AADkAugUrm6ZiOZYNCkW1evRjm-aDIlZmxVdySiah43O5ykfpUHMQEzexmLmQnzCpLCK1TwCkLg-RNij3782Z5Ok3-8wTPUdnYmpN6wSMUHU9_AkAudmww0wOwJTQiQMgSjGaGA73OK656SWWZxoHiSC8ETawCYxh-NDGfJrapF2Pc
+}
+
+body:json {
+  {
+      "role": "ROLE_MODERATOR"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

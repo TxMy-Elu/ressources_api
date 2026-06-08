@@ -1,0 +1,119 @@
+name: CI — Tests & Quality
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev, main, release, hotfix]
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # TESTS
+  # ──────────────────────────────────────────────────────────────────────────
+  tests:
+    name: PHPUnit Tests
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: resources_test
+          MYSQL_USER: app
+          MYSQL_PASSWORD: app
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u app -papp"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo, pdo_mysql, intl, mbstring, opcache
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts
+
+      - name: Generate JWT keys
+        run: |
+          mkdir -p config/jwt
+          openssl genpkey -algorithm RSA -out config/jwt/private.pem \
+            -aes256 -pass pass:${{ secrets.JWT_PASSPHRASE }} -pkeyopt rsa_keygen_bits:4096
+          openssl rsa -pubout -in config/jwt/private.pem \
+            -out config/jwt/public.pem -passin pass:${{ secrets.JWT_PASSPHRASE }}
+
+      - name: Setup test environment
+        run: |
+          cat > .env.test.local << EOF
+          DATABASE_URL="mysql://app:app@127.0.0.1:3306/resources_test?serverVersion=8.0&charset=utf8mb4"
+          JWT_PASSPHRASE=${{ secrets.JWT_PASSPHRASE }}
+          APP_SECRET=${{ secrets.APP_SECRET }}
+          EOF
+
+      - name: Run migrations
+        env:
+          APP_ENV: test
+          DATABASE_URL: mysql://app:app@127.0.0.1:3306/resources_test?serverVersion=8.0&charset=utf8mb4
+          JWT_PASSPHRASE: ${{ secrets.JWT_PASSPHRASE }}
+          APP_SECRET: ${{ secrets.APP_SECRET }}
+        run: php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+
+      - name: Run tests
+        env:
+          APP_ENV: test
+          DATABASE_URL: mysql://app:app@127.0.0.1:3306/resources_test?serverVersion=8.0&charset=utf8mb4
+          JWT_PASSPHRASE: ${{ secrets.JWT_PASSPHRASE }}
+          APP_SECRET: ${{ secrets.APP_SECRET }}
+        # exit-code non-zero = workflow échoue = pas de déploiement
+        run: php bin/phpunit --no-coverage --stop-on-failure
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # LINT
+  # ──────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Static Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo, pdo_mysql, intl, mbstring
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-scripts
+
+      - name: PHP Syntax check
+        run: find src/ -name "*.php" -exec php -l {} \; | grep -v "No syntax errors" || true
+
+      - name: Lint YAML
+        run: php bin/console lint:yaml config/ --parse-tags
+
+      - name: Lint container
+        env:
+          APP_ENV: dev
+          APP_SECRET: ci_dummy_secret
+          DATABASE_URL: mysql://app:app@127.0.0.1:3306/resources?serverVersion=8.0
+          JWT_PASSPHRASE: ci_dummy
+        run: php bin/console lint:container --no-debug

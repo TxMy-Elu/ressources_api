@@ -1,0 +1,85 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dockerfile PRODUCTION — Multi-stage build
+#
+# Usage :
+#   docker build -f Dockerfile.prod -t resources-api:latest .
+#
+# Stages :
+#   1. vendor  — Composer install sans dépendances dev
+#   2. runtime — PHP-FPM Alpine, utilisateur non-root, OPcache activé
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 1 : Dépendances Composer (sans dev)
+# ─────────────────────────────────────────────────────────────────────────────
+FROM composer:2 AS vendor
+
+WORKDIR /app
+
+COPY composer.json composer.lock ./
+
+RUN composer install \
+    --no-dev \
+    --no-interaction \
+    --prefer-dist \
+    --optimize-autoloader \
+    --no-scripts
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 2 : Runtime PHP-FPM Alpine — utilisateur non-root
+# ─────────────────────────────────────────────────────────────────────────────
+FROM php:8.4-fpm-alpine AS runtime
+
+# Extensions PHP nécessaires à Symfony
+RUN apk add --no-cache \
+      icu-libs \
+      oniguruma && \
+    apk add --no-cache --virtual .build-deps \
+      icu-dev \
+      oniguruma-dev && \
+    docker-php-ext-configure intl && \
+    docker-php-ext-install \
+      pdo \
+      pdo_mysql \
+      intl \
+      mbstring \
+      opcache && \
+    apk del .build-deps && \
+    rm -rf /tmp/* /var/cache/apk/*
+
+# Configuration PHP production (OPcache + sécurité)
+COPY docker/php/php-prod.ini /usr/local/etc/php/conf.d/99-php-prod.ini
+
+# Créer un utilisateur non-root (UID/GID 1001)
+RUN addgroup -g 1001 -S symfony && \
+    adduser  -u 1001 -S symfony -G symfony
+
+WORKDIR /var/www/html
+
+# Copier le code source (sans vendor)
+COPY --chown=symfony:symfony . .
+
+# Copier les dépendances Composer compilées depuis le stage 1
+COPY --from=vendor --chown=symfony:symfony /app/vendor ./vendor
+
+# Créer les répertoires var/ et les rendre writables par symfony
+RUN mkdir -p var/cache var/log && \
+    chown -R symfony:symfony var/ && \
+    chmod -R 775 var/
+
+# Supprimer les fichiers non nécessaires en production
+RUN rm -rf \
+    tests/ \
+    .git/ \
+    .github/ \
+    docker/nginx/ \
+    *.md \
+    phpunit.dist.xml \
+    .env.*.example
+
+USER symfony
+
+EXPOSE 9000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD php-fpm -t 2>&1 | grep -q "successful" || exit 1
