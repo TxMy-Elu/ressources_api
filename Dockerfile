@@ -1,6 +1,6 @@
 FROM php:8.4-fpm
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git unzip libpq-dev libonig-dev libxml2-dev libicu-dev \
     && docker-php-ext-configure intl \
     && docker-php-ext-install pdo pdo_mysql mbstring intl \
@@ -18,3 +18,10 @@ RUN echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
+
+# Utilisateur non-root pour éviter les risques de sécurité
+RUN useradd -u 1000 -m appuser
+USER appuser
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD php-fpm -t || exit 1
