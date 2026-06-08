@@ -53,12 +53,18 @@ class AuthControllerTest extends ApiTestCase
     public function testInscriptionEmailDupliquéEstRefusee(): void
     {
         $client = static::createClient();
+        $email   = 'dup_' . uniqid() . '@test.fr';
         $payload = json_encode([
-            'email'    => 'citoyen@resources.fr',
+            'email'    => $email,
             'password' => 'Test1234!',
             'name'     => 'Dup User',
         ]);
 
+        // 1er enregistrement — doit réussir
+        $client->request('POST', '/api/auth/register', [], [], ['CONTENT_TYPE' => 'application/json'], $payload);
+        $this->assertResponseStatusCodeSame(201);
+
+        // 2e enregistrement avec le même email — doit être refusé
         $client->request('POST', '/api/auth/register', [], [], ['CONTENT_TYPE' => 'application/json'], $payload);
         $this->assertNotEquals(201, $client->getResponse()->getStatusCode());
     }
