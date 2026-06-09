@@ -1,0 +1,168 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Stack monitoring — Prometheus + Grafana + Loki + Promtail + exporters
+#
+# À combiner avec n'importe quel environnement :
+#
+#   DEV  : docker compose -f docker-compose.yaml \
+#                         -f docker-compose.monitoring.yaml up -d
+#
+#   PROD : docker compose -f docker-compose.yaml \
+#                         -f docker-compose.prod.yaml \
+#                         -f docker-compose.monitoring.yaml up -d
+#
+# Accès :
+#   Prometheus : http://localhost:9090
+#   Grafana    : http://localhost:3001  (admin / admin)
+#   Loki API   : http://localhost:3100
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Override Nginx — log JSON vers stdout (lu par Promtail via Docker socket)
+  nginx:
+    volumes:
+      - ./docker/nginx/00-log-format.conf:/etc/nginx/conf.d/00-log-format.conf:ro
+
+  # ── Prometheus — collecte les métriques des exporters ─────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: resources_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
+    networks:
+      - resources_network
+
+  # ── Loki — stockage et indexation des logs ────────────────────────────────
+  loki:
+    image: grafana/loki:latest
+    container_name: resources_loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki.yml
+    restart: unless-stopped
+    networks:
+      - resources_network
+
+  # ── Promtail — collecte les logs Nginx (JSON) → Loki ─────────────────────
+  promtail:
+    image: grafana/promtail:latest
+    container_name: resources_promtail
+    volumes:
+      - ./monitoring/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/promtail.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+    networks:
+      - resources_network
+
+  # ── Grafana — visualisation métriques + logs ──────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: resources_grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/ressources-overview.json
+      GF_FEATURE_TOGGLES_ENABLE: "lokiExperimentalFeatures"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+    networks:
+      - resources_network
+
+  # ── PHP-FPM Exporter — workers actifs, inactifs, slow requests ───────────
+  php-fpm-exporter:
+    image: hipages/php-fpm_exporter:latest
+    container_name: resources_fpm_exporter
+    environment:
+      PHP_FPM_SCRAPE_URI: "tcp://php:9000/status"
+      PHP_FPM_FIX_PROCESS_COUNT: "true"
+    ports:
+      - "9253:9253"
+    depends_on:
+      - php
+    restart: unless-stopped
+    networks:
+      - resources_network
+
+  # ── Nginx Exporter — connexions, requêtes/s (stub_status) ────────────────
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: resources_nginx_exporter
+    command:
+      - '--nginx.scrape-uri=http://nginx/nginx_status'
+    ports:
+      - "9113:9113"
+    depends_on:
+      - nginx
+    restart: unless-stopped
+    networks:
+      - resources_network
+
+  # ── MySQL Exporter — QPS, connexions, slow queries, InnoDB ───────────────
+  mysqld-exporter:
+    image: prom/mysqld-exporter:latest
+    container_name: resources_mysql_exporter
+    command:
+      - '--config.my-cnf=/etc/mysql/exporter.cnf'
+      - '--collect.global_status'
+      - '--collect.global_variables'
+      - '--collect.info_schema.processlist'
+      - '--collect.info_schema.innodb_metrics'
+      - '--collect.perf_schema.tablelocks'
+    volumes:
+      - ./monitoring/mysql/exporter.cnf:/etc/mysql/exporter.cnf:ro
+    ports:
+      - "9104:9104"
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - resources_network
+
+  # ── Node Exporter — CPU, RAM, réseau ─────────────────────────────────────
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: resources_node_exporter
+    command:
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+    networks:
+      - resources_network
+    # Sur un serveur Linux : décommenter pour les métriques disque réelles
+    # command:
+    #   - '--path.rootfs=/host'
+    # volumes:
+    #   - /:/host:ro,rslave
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  loki_data:
