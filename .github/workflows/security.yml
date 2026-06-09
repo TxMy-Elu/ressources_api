@@ -170,7 +170,7 @@ jobs:
         with:
           project: ressources_api
           path: .
-          format: HTML,JUNIT
+          format: ALL
           args: >
             --enableRetired
             --failOnCVSS 7
