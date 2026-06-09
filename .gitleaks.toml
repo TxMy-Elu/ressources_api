@@ -1,0 +1,9 @@
+title = "Gitleaks — ressources_api"
+
+[allowlist]
+  description = "Secrets historiques du commit initial — déjà révoqués et supprimés"
+  commits = [
+    # Commit initial : generate_keys.php (passphrase révoquée) + Bruno Promote User.bru (JWT révoqué)
+    # Ces secrets ne sont plus valides et ont été supprimés dans le commit suivant
+    "bd2356174d65f850e6265f60ea75d9ae4adddc2e",
+  ]
