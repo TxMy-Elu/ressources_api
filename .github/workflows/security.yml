@@ -114,6 +114,9 @@ jobs:
   trivy-code:
     name: Trivy — Code & secrets scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - name: Checkout
