@@ -1,12 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Surcharge DEV — chargée automatiquement par `docker compose up`
+# Ajoute : xdebug, hot-reload, mailpit, phpmyadmin, ports locaux
+# ─────────────────────────────────────────────────────────────────────────────
 
 services:
-###> symfony/mailer ###
-  mailer:
-    image: axllent/mailpit
+
+  nginx:
     ports:
-      - "1025"
-      - "8025"
+      - "8080:80"
+    volumes:
+      - .:/var/www/html:rw
+
+  php:
+    volumes:
+      - .:/var/www/html:rw
+      - ./docker/php/fpm-www.conf:/usr/local/etc/php-fpm.d/zz-www.conf:ro
+      - ./docker/php/php-dev.ini:/usr/local/etc/php/conf.d/99-dev-opcache.ini:ro
+      - php_cache:/var/www/html/var/cache
+      - php_logs:/var/www/html/var/log
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: "0"
+      DATABASE_URL: "mysql://app:app@database:3306/resources?serverVersion=8.0&charset=utf8mb4"
+      MAILER_DSN: smtp://mailer:1025
+      JWT_SECRET_KEY: "%kernel.project_dir%/config/jwt/private.pem"
+      JWT_PUBLIC_KEY: "%kernel.project_dir%/config/jwt/public.pem"
+      JWT_PASSPHRASE: ${JWT_PASSPHRASE:-changeme}
+      CORS_ALLOW_ORIGIN: "^https?://(localhost|127\\.0\\.0\\.1)(:[0-9]+)?$"
+      XDEBUG_MODE: "off"
+      XDEBUG_CONFIG: "client_host=host.docker.internal client_port=9003 start_with_request=trigger"
+      PHP_IDE_CONFIG: "serverName=resources"
+
+  database:
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: resources
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
+    ports:
+      - "3307:3306"
+
+  # ─── Interface d'administration MySQL ───────────────────────────────────────
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: resources_pma
+    restart: unless-stopped
+    environment:
+      PMA_HOST: database
+      PMA_PORT: 3306
+    ports:
+      - "8081:80"
+    depends_on:
+      - database
+    networks:
+      - resources_network
+
+  # ─── Serveur mail de test (Mailpit) ─────────────────────────────────────────
+  mailer:
+###> symfony/mailer ###
+    image: axllent/mailpit
+    container_name: resources_mail
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
 ###< symfony/mailer ###
+    networks:
+      - resources_network
+
+volumes:
+  php_cache:
+  php_logs:
