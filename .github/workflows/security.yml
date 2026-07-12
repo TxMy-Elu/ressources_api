@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
@@ -78,7 +78,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build image for scanning
         run: docker build -f Dockerfile.prod -t ressources-api:scan .
@@ -120,7 +120,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Trivy filesystem scan
         uses: aquasecurity/trivy-action@master
@@ -146,7 +146,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -166,7 +166,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
