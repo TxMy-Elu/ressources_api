@@ -17,11 +17,18 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use App\Service\PasswordResetMailer;
 
 class AuthController extends AbstractController
 {
+    public function __construct(
+        private readonly RateLimiterFactory $loginLimiter,
+        private readonly RateLimiterFactory $registerLimiter,
+        private readonly RateLimiterFactory $forgotPasswordLimiter,
+    ) {}
+
     #[Route('/api/auth/register', name: 'api_auth_register', methods: ['POST'])]
     public function register(
         Request                     $request,
@@ -31,6 +38,10 @@ class AuthController extends AbstractController
         LogService                  $logger
     ): JsonResponse
     {
+        $limiter = $this->registerLimiter->create($request->getClientIp());
+        if (!$limiter->consume(1)->isAccepted()) {
+            return $this->json(['error' => 'Trop de tentatives. Réessayez dans 1 heure.'], 429);
+        }
         $data = $this->decodeJsonPayload($request);
 
         if ($data === null) {
@@ -171,6 +182,10 @@ class AuthController extends AbstractController
     #[Route('/api/auth/login', name: 'api_auth_login', methods: ['POST'])]
     public function login(Request $request, UserPasswordHasherInterface $passwordHasher, EntityManagerInterface $em, JWTTokenManagerInterface $jwtManager, LogService $logger): JsonResponse
     {
+        $limiter = $this->loginLimiter->create($request->getClientIp());
+        if (!$limiter->consume(1)->isAccepted()) {
+            return $this->json(['error' => 'Trop de tentatives. Réessayez dans 15 minutes.'], 429);
+        }
         $data = $this->decodeJsonPayload($request);
 
         if ($data === null) {
@@ -246,6 +261,10 @@ class AuthController extends AbstractController
     #[Route('/api/auth/forgot-password', name: 'api_auth_forgot_password', methods: ['POST'])]
     public function forgotPassword(Request $request, EntityManagerInterface $em, PasswordResetMailer $mailer, LogService $logger): JsonResponse
     {
+        $limiter = $this->forgotPasswordLimiter->create($request->getClientIp());
+        if (!$limiter->consume(1)->isAccepted()) {
+            return $this->json(['error' => 'Trop de tentatives. Réessayez dans 1 heure.'], 429);
+        }
         $data = $this->decodeJsonPayload($request);
 
         if ($data === null) {
