@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Documentation API
+    url: https://github.com/TxMy-Elu/ressources_api/blob/main/README.md
+    about: Consulter la documentation avant d'ouvrir un ticket
+  - name: Wiki du projet
+    url: https://github.com/TxMy-Elu/ressources_api/wiki
+    about: Architecture, CI/CD et processus de gestion des incidents

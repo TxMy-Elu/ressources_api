@@ -31,7 +31,8 @@ RUN composer install \
 FROM php:8.4-fpm-alpine AS runtime
 
 # Extensions PHP nécessaires à Symfony
-RUN apk add --no-cache \
+RUN apk upgrade --no-cache c-ares && \
+    apk add --no-cache \
       icu-libs \
       oniguruma && \
     apk add --no-cache --virtual .build-deps \

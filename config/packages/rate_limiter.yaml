@@ -1,0 +1,19 @@
+framework:
+    rate_limiter:
+        # Login — 5 tentatives par 15 minutes par IP (anti brute-force)
+        login:
+            policy: sliding_window
+            limit: 5
+            interval: '15 minutes'
+
+        # Inscription — 10 comptes par heure par IP (anti spam)
+        register:
+            policy: fixed_window
+            limit: 10
+            interval: '1 hour'
+
+        # Mot de passe oublié — 3 demandes par heure par IP (anti enumération)
+        forgot_password:
+            policy: fixed_window
+            limit: 3
+            interval: '1 hour'
