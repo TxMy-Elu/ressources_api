@@ -22,6 +22,7 @@ jobs:
       JWT_SECRET_KEY: "%kernel.project_dir%/config/jwt/private.pem"
       JWT_PUBLIC_KEY: "%kernel.project_dir%/config/jwt/public.pem"
       DEFAULT_URI: "http://localhost"
+      FRONTEND_URL: "http://localhost:3000"
       # Base "resources" + suffixe "_test" (doctrine) = "resources_test" ✓
       DATABASE_URL: "mysql://app:app@127.0.0.1:3306/resources?serverVersion=8.0&charset=utf8mb4"
 

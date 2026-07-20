@@ -175,6 +175,53 @@ class AuthControllerTest extends ApiTestCase
         $this->assertResponseStatusCodeSame(403);
     }
 
+    public function testForgotPasswordEmailInconnuRetourne200(): void
+    {
+        $client = static::createClient();
+        $client->request(
+            'POST', '/api/auth/forgot-password', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode(['email' => 'nobody_' . uniqid() . '@nowhere.fr'])
+        );
+
+        // Réponse volontairement ambiguë pour ne pas révéler si l'email existe
+        $this->assertResponseStatusCodeSame(200);
+        $data = $this->jsonResponse($client);
+        $this->assertArrayHasKey('message', $data);
+    }
+
+    public function testForgotPasswordEmailVideRetourne400(): void
+    {
+        $client = static::createClient();
+        $client->request(
+            'POST', '/api/auth/forgot-password', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode(['email' => ''])
+        );
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testResetPasswordTokenInvalideRetourne400(): void
+    {
+        $client = static::createClient();
+        $client->request(
+            'POST', '/api/auth/reset-password', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode(['token' => 'invalid_token', 'password' => 'NewPass1234!'])
+        );
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testRefreshSansTokenRetourne401Ou403(): void
+    {
+        $client = static::createClient();
+        $client->request('POST', '/api/auth/refresh');
+        $status = $client->getResponse()->getStatusCode();
+        $this->assertContains($status, [401, 403]);
+    }
+
     public function testPromotionAvecRoleInvalideRetourne400(): void
     {
         $client = $this->createAuthenticatedClient();
