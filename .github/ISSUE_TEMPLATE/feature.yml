@@ -1,0 +1,63 @@
+name: "✨ Feature Request"
+description: Proposer une nouvelle fonctionnalité ou une amélioration
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Besoin
+      description: Quel problème cette fonctionnalité résout-elle ?
+      placeholder: "Ex : Il n'est pas possible de filtrer les ressources par niveau scolaire."
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-story
+    attributes:
+      label: User story
+      placeholder: "En tant que [rôle], je veux [action] afin que [bénéfice]."
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: criteres
+    attributes:
+      label: Critères d'acceptation
+      description: Coche les critères une fois implémentés.
+      options:
+        - label: Critère 1 — à compléter
+        - label: Critère 2 — à compléter
+        - label: Testé sur l'environnement de staging
+        - label: Revue de code effectuée
+
+  - type: dropdown
+    id: perimetre
+    attributes:
+      label: Périmètre
+      options:
+        - Frontend
+        - API
+        - Mobile
+        - Infra
+        - CI/CD
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priorite
+    attributes:
+      label: Priorité
+      options:
+        - Haute — bloque une livraison ou un utilisateur clé
+        - Moyenne — amélioration notable mais non bloquante
+        - Basse — nice-to-have
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes techniques
+      description: Contraintes techniques, liens vers la doc, fichiers concernés.

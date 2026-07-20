@@ -1,0 +1,65 @@
+name: "🐛 Bug Report"
+description: Signaler un dysfonctionnement ou un comportement inattendu
+title: "[Bug] "
+labels: ["bug"]
+body:
+
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Besoin
+      description: Décris le problème constaté de façon factuelle.
+      placeholder: "Ex : La page /profile renvoie une erreur 500 après connexion avec un compte inactif."
+    validations:
+      required: true
+
+  - type: textarea
+    id: attendu
+    attributes:
+      label: Comportement attendu
+      placeholder: "Ex : L'utilisateur doit voir un message d'erreur clair, pas une erreur serveur."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Étapes pour reproduire
+      placeholder: |
+        1. Se connecter avec un compte inactif
+        2. Accéder à /profile
+        3. Observer l'erreur 500
+    validations:
+      required: true
+
+  - type: dropdown
+    id: perimetre
+    attributes:
+      label: Périmètre
+      options:
+        - Frontend
+        - API
+        - Mobile
+        - Infra
+        - CI/CD
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severite
+    attributes:
+      label: Sévérité
+      options:
+        - Critique — app inaccessible ou perte de données
+        - Majeur — fonctionnalité principale bloquée
+        - Mineur — gêne sans blocage
+        - Cosmétique — visuel uniquement
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes techniques
+      description: Logs, captures d'écran, fichiers concernés, liens utiles.
+      placeholder: "Ex : Erreur dans les logs : TypeError: Cannot read properties of undefined..."
