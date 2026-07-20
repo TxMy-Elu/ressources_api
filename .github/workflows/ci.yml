@@ -50,7 +50,7 @@ jobs:
         with:
           php-version: "8.4"
           extensions: pdo, pdo_mysql, intl, mbstring, opcache
-          coverage: none
+          coverage: pcov
 
       - name: Cache Composer
         uses: actions/cache@v4
@@ -84,7 +84,14 @@ jobs:
         run: php bin/console doctrine:fixtures:load --no-interaction --append
 
       - name: Run tests
-        run: php bin/phpunit --no-coverage --stop-on-failure
+        run: php bin/phpunit --coverage-clover coverage.xml --stop-on-failure
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          retention-days: 1
 
   # ──────────────────────────────────────────────────────────────────────────
   # LINT
@@ -140,6 +147,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # requis pour l'analyse des nouveaux commits
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
