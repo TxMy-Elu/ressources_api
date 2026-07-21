@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Grafana Unified Alerting — règles provisionnées (Loki)
+# ─────────────────────────────────────────────────────────────────────────────
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: http_errors
+    folder: Ressources API
+    interval: 1m
+    rules:
+
+      # ── Taux d'erreurs 5xx > 5 % sur 5 min ──────────────────────────────
+      - uid: http-5xx-rate
+        title: "Taux d'erreurs 5xx élevé (>5 %)"
+        condition: C
+        data:
+          # A — nombre de 5xx sur 5 min
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({container="resources_nginx"} | json | status >= `500` [5m]))'
+              queryType: range
+              refId: A
+              legendFormat: "5xx"
+
+          # B — nombre total de requêtes sur 5 min
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({container="resources_nginx"} | json [5m]))'
+              queryType: range
+              refId: B
+              legendFormat: "total"
+
+          # C — réduction : dernière valeur du ratio A/B
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator:
+                    params: [0.05]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                  type: query
+              expression: "$A / $B"
+              refId: C
+              type: math
+
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Taux d'erreurs 5xx > 5 %"
+          description: "Plus de 5 % des requêtes Nginx retournent une erreur 5xx depuis 5 min."
+        labels:
+          severity: critical
+
+      # ── Pic de 4xx > 20 % (clients ou scan malveillant) ─────────────────
+      - uid: http-4xx-rate
+        title: "Taux d'erreurs 4xx anormal (>20 %)"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({container="resources_nginx"} | json | status >= `400` | status < `500` [5m]))'
+              queryType: range
+              refId: A
+              legendFormat: "4xx"
+
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({container="resources_nginx"} | json [5m]))'
+              queryType: range
+              refId: B
+              legendFormat: "total"
+
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator:
+                    params: [0.20]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                  type: query
+              expression: "$A / $B"
+              refId: C
+              type: math
+
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Taux d'erreurs 4xx > 20 %"
+          description: "Peut indiquer un scan malveillant, tokens JWT expirés en masse, ou bug client."
+        labels:
+          severity: warning

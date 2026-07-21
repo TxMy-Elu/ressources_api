@@ -1,0 +1,167 @@
+groups:
+
+  # ───────────────────────────────────────────────────────────────────
+  # Disponibilité des services
+  # ───────────────────────────────────────────────────────────────────
+  - name: services_up
+    interval: 30s
+    rules:
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} est DOWN"
+          description: "L'exporter {{ $labels.job }} ({{ $labels.instance }}) ne répond plus depuis 1 min."
+
+  # ───────────────────────────────────────────────────────────────────
+  # PHP-FPM
+  # ───────────────────────────────────────────────────────────────────
+  - name: php_fpm
+    interval: 15s
+    rules:
+
+      - alert: FpmPoolSaturated
+        # Plus de 90 % des workers actifs → risque de 502
+        expr: |
+          phpfpm_active_processes
+            /
+          (phpfpm_active_processes + phpfpm_idle_processes)
+          > 0.90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PHP-FPM pool saturé (>90 %)"
+          description: "{{ $value | humanizePercentage }} des workers PHP-FPM sont occupés depuis 2 min. Risque de 502."
+
+      - alert: FpmMaxChildrenReached
+        # Le pool a dû refuser des requêtes (compteur croissant)
+        expr: increase(phpfpm_max_children_reached_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PHP-FPM a rejeté des connexions"
+          description: "pm.max_children atteint {{ $value }} fois en 5 min → requêtes perdues."
+
+      - alert: FpmSlowRequests
+        expr: increase(phpfpm_slow_requests_total[5m]) > 5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PHP-FPM slow requests détectés"
+          description: "{{ $value }} slow requests en 5 min. Vérifie les requêtes SQL lentes."
+
+  # ───────────────────────────────────────────────────────────────────
+  # MySQL
+  # ───────────────────────────────────────────────────────────────────
+  - name: mysql
+    interval: 30s
+    rules:
+
+      - alert: MysqlConnectionsHigh
+        expr: mysql_global_status_threads_connected > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL connexions élevées ({{ $value }})"
+          description: "{{ $value }} connexions actives depuis 5 min. Max configuré ~150."
+
+      - alert: MysqlConnectionsMax
+        expr: |
+          mysql_global_status_threads_connected
+            /
+          mysql_global_variables_max_connections
+          > 0.90
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL proche du max de connexions (>90 %)"
+          description: "{{ $value | humanizePercentage }} du pool MySQL utilisé. Risque d'erreur 'Too many connections'."
+
+      - alert: MysqlDown
+        expr: mysql_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL est DOWN"
+          description: "L'exporter MySQL ne peut plus joindre la base de données."
+
+      - alert: MysqlSlowQueries
+        expr: increase(mysql_global_status_slow_queries[5m]) > 10
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL slow queries détectées"
+          description: "{{ $value }} slow queries en 5 min. Vérifie les index manquants."
+
+  # ───────────────────────────────────────────────────────────────────
+  # Système (Node Exporter — RAM, CPU, Disque)
+  # ───────────────────────────────────────────────────────────────────
+  - name: system
+    interval: 30s
+    rules:
+
+      - alert: MemoryHigh
+        expr: |
+          1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RAM utilisée > 85 %"
+          description: "{{ $value | humanizePercentage }} de la RAM utilisée depuis 5 min."
+
+      - alert: MemoryCritical
+        expr: |
+          1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RAM critique > 95 %"
+          description: "{{ $value | humanizePercentage }} RAM utilisée. Risque d'OOM killer."
+
+      - alert: CpuHigh
+        expr: |
+          100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU > 85 % depuis 10 min"
+          description: "CPU à {{ $value | humanize }}% en moyenne sur {{ $labels.instance }}."
+
+      - alert: DiskLow
+        expr: |
+          node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"}
+            /
+          node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}
+          < 0.15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Espace disque < 15 %"
+          description: "Seulement {{ $value | humanizePercentage }} d'espace libre sur /."
+
+      - alert: DiskCritical
+        expr: |
+          node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"}
+            /
+          node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}
+          < 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Espace disque critique < 5 %"
+          description: "Moins de 5 % d'espace libre. Nettoyage urgent nécessaire."

@@ -17,3 +17,13 @@ framework:
             policy: fixed_window
             limit: 3
             interval: '1 hour'
+
+when@test:
+    framework:
+        rate_limiter:
+            login:
+                limit: 1000
+            register:
+                limit: 1000
+            forgot_password:
+                limit: 1000

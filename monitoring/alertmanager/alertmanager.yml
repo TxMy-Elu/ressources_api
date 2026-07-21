@@ -1,0 +1,77 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Alertmanager — routage et envoi des notifications
+#
+# Récepteurs disponibles :
+#   - null    : absorbe les alertes sans les envoyer (défaut sûr)
+#   - email   : décommenter + remplir SMTP pour les notifications par mail
+#
+# Pour activer l'email, décommenter la section receivers.email-ops
+# et renseigner les variables dans .env.prod :
+#   ALERTMANAGER_SMTP_FROM
+#   ALERTMANAGER_SMTP_TO
+#   ALERTMANAGER_SMTP_HOST
+#   ALERTMANAGER_SMTP_USER
+#   ALERTMANAGER_SMTP_PASSWORD
+# ─────────────────────────────────────────────────────────────────────────────
+
+global:
+  resolve_timeout: 5m
+  # smtp_smarthost: '${ALERTMANAGER_SMTP_HOST:-smtp.gmail.com:587}'
+  # smtp_from: '${ALERTMANAGER_SMTP_FROM:-alertmanager@ressources.fr}'
+  # smtp_auth_username: '${ALERTMANAGER_SMTP_USER}'
+  # smtp_auth_password: '${ALERTMANAGER_SMTP_PASSWORD}'
+  # smtp_require_tls: true
+
+# ── Inhibitions — évite le bruit quand un service entier est down ─────────────
+inhibit_rules:
+  # Si le service est DOWN, on supprime ses alertes de performance
+  - source_matchers:
+      - alertname = "ServiceDown"
+    target_matchers:
+      - alertname =~ "FpmPool.*|MysqlConnections.*|MysqlSlowQueries"
+    equal: [job]
+
+  # Si MySQL est DOWN, on supprime les alertes de connexions MySQL
+  - source_matchers:
+      - alertname = "MysqlDown"
+    target_matchers:
+      - alertname =~ "MysqlConnections.*|MysqlSlowQueries"
+
+# ── Routage ───────────────────────────────────────────────────────────────────
+route:
+  group_by: ['alertname', 'job']
+  group_wait: 30s        # attendre 30s pour grouper les alertes du même burst
+  group_interval: 5m     # intervalle entre deux groupes du même sujet
+  repeat_interval: 4h    # re-notifier si l'alerte dure
+  receiver: 'null'       # récepteur par défaut (changer en 'email-ops' pour activer)
+
+  routes:
+    # Critiques → notifier immédiatement sans attendre le groupe
+    - matchers:
+        - severity = "critical"
+      group_wait: 10s
+      repeat_interval: 1h
+      receiver: 'null'   # remplacer par 'email-ops' quand SMTP configuré
+
+    # Warnings → routage standard
+    - matchers:
+        - severity = "warning"
+      receiver: 'null'
+
+# ── Récepteurs ────────────────────────────────────────────────────────────────
+receivers:
+  - name: 'null'
+
+  # Décommenter et configurer pour les emails :
+  # - name: 'email-ops'
+  #   email_configs:
+  #     - to: '${ALERTMANAGER_SMTP_TO}'
+  #       send_resolved: true
+  #       headers:
+  #         subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} — {{ .CommonLabels.job }}'
+  #       html: |
+  #         <b>Alertes {{ .Status | toUpper }}</b><br>
+  #         {{ range .Alerts }}
+  #           <b>{{ .Annotations.summary }}</b><br>
+  #           {{ .Annotations.description }}<br><br>
+  #         {{ end }}

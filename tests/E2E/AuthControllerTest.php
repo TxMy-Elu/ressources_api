@@ -190,4 +190,132 @@ class AuthControllerTest extends ApiTestCase
 
         $this->assertResponseStatusCodeSame(400);
     }
+
+    // ── /api/auth/login (controller custom — distinct du firewall /api/login) ──
+
+    public function testLoginCustomEndpointRetourneTokenEtUser(): void
+    {
+        $client = static::createClient();
+        $client->request(
+            'POST', '/api/auth/login', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode(['email' => 'citoyen@resources.fr', 'password' => 'User1234!'])
+        );
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = $this->jsonResponse($client);
+        $this->assertArrayHasKey('token', $data);
+        $this->assertArrayHasKey('user', $data);
+        $this->assertArrayHasKey('email', $data['user']);
+        $this->assertNotEmpty($data['token']);
+    }
+
+    public function testLoginCustomEndpointChampsVidesRetourne400(): void
+    {
+        $client = static::createClient();
+        $client->request(
+            'POST', '/api/auth/login', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode(['email' => '', 'password' => ''])
+        );
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    // ── /api/auth/refresh ────────────────────────────────────────────────────
+
+    public function testRefreshAvecTokenValideRetourne200(): void
+    {
+        $client = $this->createAuthenticatedClient();
+        $client->request('POST', '/api/auth/refresh');
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = $this->jsonResponse($client);
+        $this->assertArrayHasKey('token', $data);
+        $this->assertArrayHasKey('expiresIn', $data);
+        $this->assertSame(3600, $data['expiresIn']);
+    }
+
+    // ── /api/auth/forgot-password ────────────────────────────────────────────
+
+    public function testForgotPasswordEmailConnuRetourne200EtCreeToken(): void
+    {
+        $email = 'citoyen@resources.fr';
+
+        $client = static::createClient();
+        $client->request(
+            'POST', '/api/auth/forgot-password', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode(['email' => $email])
+        );
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = $this->jsonResponse($client);
+        $this->assertArrayHasKey('message', $data);
+
+        // Vérifier qu'un token valide a été persisté en DB
+        $em   = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class);
+        $user = $em->getRepository(\App\Entity\User::class)->findOneBy(['email' => $email]);
+        $tok  = $em->getRepository(\App\Entity\PasswordResetToken::class)
+            ->findOneBy(['user' => $user, 'used' => false]);
+
+        $this->assertNotNull($tok, 'Aucun token de reset trouvé en DB après forgot-password');
+        $this->assertFalse($tok->isExpired(), 'Le token ne doit pas être expiré');
+    }
+
+    // ── /api/auth/reset-password ─────────────────────────────────────────────
+
+    public function testResetPasswordMotsDePasseNonCorrespondantsRetourne400(): void
+    {
+        $client = static::createClient();
+        $client->request(
+            'POST', '/api/auth/reset-password', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode([
+                'token'            => 'irrelevant',
+                'password'         => 'NewPass1234!',
+                'password_confirm' => 'AutrePass5678!',
+            ])
+        );
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = $this->jsonResponse($client);
+        $this->assertArrayHasKey('error', $data);
+    }
+
+    public function testResetPasswordAvecTokenValideRetourne200(): void
+    {
+        $email = 'citoyen@resources.fr';
+
+        // Étape 1 : déclencher la génération du token en DB
+        $client = static::createClient();
+        $client->request(
+            'POST', '/api/auth/forgot-password', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode(['email' => $email])
+        );
+        $this->assertResponseStatusCodeSame(200);
+
+        // Étape 2 : récupérer le token depuis la DB (kernel encore actif)
+        $em   = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class);
+        $user = $em->getRepository(\App\Entity\User::class)->findOneBy(['email' => $email]);
+        $rows = $em->getRepository(\App\Entity\PasswordResetToken::class)
+            ->findBy(['user' => $user, 'used' => false], ['createdAt' => 'DESC'], 1);
+
+        $this->assertNotEmpty($rows, 'Aucun token de reset trouvé en DB');
+        $rawToken = $rows[0]->getToken();
+
+        // Étape 3 : utiliser le token — on remet le même mot de passe pour ne pas casser les fixtures
+        static::ensureKernelShutdown();
+        $client2 = static::createClient();
+        $client2->request(
+            'POST', '/api/auth/reset-password', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode(['token' => $rawToken, 'password' => 'User1234!'])
+        );
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = $this->jsonResponse($client2);
+        $this->assertArrayHasKey('message', $data);
+    }
 }
